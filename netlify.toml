@@ -10,3 +10,5 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  # Ensure workspace devDependencies (tsc) install when NODE_ENV=production
+  NPM_CONFIG_PRODUCTION = "false"
