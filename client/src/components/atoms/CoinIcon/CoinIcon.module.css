@@ -1,0 +1,29 @@
+.icon {
+  flex-shrink: 0;
+  color: var(--design-gold);
+}
+
+.xs {
+  width: 0.7rem;
+  height: 0.7rem;
+}
+
+.sm {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.md {
+  width: 1rem;
+  height: 1rem;
+}
+
+.lg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.xl {
+  width: 1.35rem;
+  height: 1.35rem;
+}

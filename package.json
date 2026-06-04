@@ -1,0 +1,25 @@
+{
+  "name": "leaderboard-fe",
+  "private": true,
+  "workspaces": [
+    "client",
+    "packages/shared"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w client",
+    "build": "npm run build -w packages/shared && npm run build -w client",
+    "test": "npm run test -w client",
+    "lint": "npm run lint -w client",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,css}\"",
+    "preview": "npm run preview -w client",
+    "storybook": "npm run storybook -w client",
+    "build-storybook": "npm run build-storybook -w client"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.3"
+  }
+}
