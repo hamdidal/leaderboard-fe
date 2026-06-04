@@ -56,7 +56,7 @@ class ResizeObserverStub {
   disconnect = vi.fn();
 }
 
-global.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
+globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
 
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
