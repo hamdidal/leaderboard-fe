@@ -15,7 +15,7 @@ import { LeaderboardLayout } from '@/components/premium/LeaderboardLayout';
 import { WeekRewardsPanel } from '@/components/premium/WeekRewardsPanel';
 import { StatusBanner } from '@/components/premium/StatusBanner';
 import type { LatestRewardsResponse } from '@panteon/shared';
-import { useUiStore } from '@/store/uiStore';
+import { DEFAULT_DEMO_USER_ID, useUiStore } from '@/store/uiStore';
 import { useLeaderboardLive } from '@/hooks/useLeaderboardLive';
 import { getJwtSubject } from '@/lib/jwt';
 import { computePointsToTop100 } from '@/lib/leaderboardGap';
@@ -44,10 +44,17 @@ export function LeaderboardPage() {
     const params = new URLSearchParams(window.location.search);
     const mockPlayer = params.get('mockPlayer');
     if (mockPlayer === '8000' || mockPlayer === 'outside') {
-      setDemoUserId('demo-user-8000');
+      if (demoUserId !== 'demo-user-8000') {
+        setDemoUserId('demo-user-8000');
+        setAuthToken(null);
+      }
+      return;
+    }
+    if (demoUserId !== DEFAULT_DEMO_USER_ID) {
+      setDemoUserId(DEFAULT_DEMO_USER_ID);
       setAuthToken(null);
     }
-  }, [setDemoUserId, setAuthToken]);
+  }, [demoUserId, setDemoUserId, setAuthToken]);
 
   useEffect(() => {
     const tokenUser = authToken ? getJwtSubject(authToken) : null;
