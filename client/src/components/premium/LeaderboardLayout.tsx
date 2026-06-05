@@ -15,6 +15,11 @@ import { CoinIcon } from '@/components/atoms/CoinIcon/CoinIcon';
 import { formatCoinsFull, formatCoins } from './prizeUtils';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { GlobalMetaBar } from '@/components/premium/GlobalMetaBar';
+import {
+  MetaSkeletonBar,
+  MetaSkeletonChip,
+  PodiumSkeleton,
+} from '@/components/premium/HeaderMetaSkeleton';
 import { JumpToMeButton } from '@/components/premium/JumpToMeButton';
 import { CompactHeaderStrip } from '@/components/premium/CompactHeaderStrip';
 import { CollapsibleHeaderSection } from '@/components/premium/CollapsibleHeaderSection';
@@ -33,11 +38,17 @@ export interface LeaderboardLayoutProps {
   poolTotal?: number;
   endsAt?: string;
   weekId?: string;
+  isPoolAwaiting?: boolean;
+  isWeekAwaiting?: boolean;
+  isMeAwaiting?: boolean;
+  isTopAwaiting?: boolean;
+  totalPlayers?: number;
+  isHeaderMetaError?: boolean;
+  onRetryHeaderMeta?: () => void;
   playerRank?: number;
   estimatedReward?: number | null;
   playerTierKey?: TierI18nKey;
   nextTierHint?: { tierKey: TierI18nKey; points: string } | null;
-  totalPlayers?: number;
   entries: LeaderboardEntry[];
   highlightUserId?: string;
   rankDeltas?: ReadonlyMap<string, number>;
@@ -85,11 +96,15 @@ function WsBadge({ status }: { status: WsStatus }) {
   );
 }
 
-function WeekTimer({ endsAt }: { endsAt?: string }) {
+function WeekTimer({ endsAt, isAwaiting }: { endsAt?: string; isAwaiting?: boolean }) {
   const secondsLeft = useSecondsUntil(endsAt);
 
+  if (isAwaiting) {
+    return <MetaSkeletonBar width="4.25rem" height="1.05rem" />;
+  }
+
   if (!endsAt || secondsLeft == null) {
-    return <span className="tabular-nums text-muted-foreground">–</span>;
+    return null;
   }
 
   const { days, hours, minutes } = getDurationParts(secondsLeft);
@@ -101,11 +116,23 @@ function WeekTimer({ endsAt }: { endsAt?: string }) {
   return <span className="design-pb-rval">{label}</span>;
 }
 
-function HeaderStatusMeta({ wsStatus, weekId }: { wsStatus: WsStatus; weekId?: string }) {
+function HeaderStatusMeta({
+  wsStatus,
+  weekId,
+  isWeekAwaiting,
+}: {
+  wsStatus: WsStatus;
+  weekId?: string;
+  isWeekAwaiting?: boolean;
+}) {
   return (
     <>
       <WsBadge status={wsStatus} />
-      {weekId && <span className="design-wk-chip">{weekId}</span>}
+      {isWeekAwaiting ? (
+        <MetaSkeletonBar width="3.25rem" height="1.35rem" className="header-meta-skeleton--week-chip" />
+      ) : (
+        weekId && <span className="design-wk-chip">{weekId}</span>
+      )}
     </>
   );
 }
@@ -168,6 +195,12 @@ export function LeaderboardLayout({
   poolTotal,
   endsAt,
   weekId,
+  isPoolAwaiting = false,
+  isWeekAwaiting = false,
+  isMeAwaiting = false,
+  isTopAwaiting = false,
+  isHeaderMetaError = false,
+  onRetryHeaderMeta,
   playerRank,
   estimatedReward,
   playerTierKey,
@@ -240,11 +273,19 @@ export function LeaderboardLayout({
               </div>
 
               <div className="app-header-meta--mobile">
-                <HeaderStatusMeta wsStatus={wsStatus} weekId={weekId} />
+                <HeaderStatusMeta
+                  wsStatus={wsStatus}
+                  weekId={weekId}
+                  isWeekAwaiting={isWeekAwaiting}
+                />
               </div>
 
               <div className="app-header-actions">
-                <HeaderStatusMeta wsStatus={wsStatus} weekId={weekId} />
+                <HeaderStatusMeta
+                  wsStatus={wsStatus}
+                  weekId={weekId}
+                  isWeekAwaiting={isWeekAwaiting}
+                />
                 <span className="app-header-actions-divider" aria-hidden />
                 <LangSwitcher />
                 <ThemeToggle />
@@ -266,44 +307,62 @@ export function LeaderboardLayout({
 
           <CollapsibleHeaderSection collapsed={headerCollapsed}>
             <div className="prize-bar-center">
-              <div className="design-prize-bar">
-                <section className="design-pb-pool" aria-label={t('leaderboard.prizePoolLabel')}>
-                  <div className="design-pb-icon">
-                    <CoinIcon size="xl" />
-                  </div>
-                  <div className="design-pb-pool-text">
-                    <p className="design-pb-label">{t('leaderboard.prizePoolLabel')}</p>
-                    {poolTotal != null ? (
-                      <p
-                        className="design-pb-amount"
-                        aria-label={`${t('leaderboard.prizePoolLabel')}: ${formatCoinsFull(poolTotal)}`}
-                      >
-                        <span className="design-pb-amount-full">{formatCoinsFull(poolTotal)}</span>
-                        <span className="design-pb-amount-short">{formatCoins(poolTotal)}</span>
-                      </p>
-                    ) : (
-                      <p className="design-pb-amount text-muted-foreground">–</p>
-                    )}
-                  </div>
-                </section>
-
-                <section className="design-pb-aside" aria-label={t('leaderboard.resetsIn')}>
-                  <div className="design-pb-timer">
-                    <p className="design-pb-rlabel">{t('leaderboard.resetsIn')}</p>
-                    <WeekTimer endsAt={endsAt} />
-                  </div>
-
-                  {playerRank != null && (
-                    <div className="design-pb-stats">
-                      <PlayerStatPill
-                        rank={playerRank}
-                        estimatedReward={playerRank <= 100 ? estimatedReward : null}
-                        tierKey={playerTierKey}
-                      />
-                    </div>
+              {isHeaderMetaError ? (
+                <p className="header-meta-error mx-auto max-w-[720px] px-2.5" role="alert">
+                  {t('leaderboard.headerMetaError')}
+                  {onRetryHeaderMeta && (
+                    <button type="button" onClick={onRetryHeaderMeta}>
+                      {t('leaderboard.retry')}
+                    </button>
                   )}
-                </section>
-              </div>
+                </p>
+              ) : (
+                <div
+                  className="design-prize-bar"
+                  aria-busy={isPoolAwaiting || isWeekAwaiting || isMeAwaiting || undefined}
+                >
+                  <section className="design-pb-pool" aria-label={t('leaderboard.prizePoolLabel')}>
+                    <div className="design-pb-icon">
+                      <CoinIcon size="xl" />
+                    </div>
+                    <div className="design-pb-pool-text">
+                      <p className="design-pb-label">{t('leaderboard.prizePoolLabel')}</p>
+                      {isPoolAwaiting ? (
+                        <MetaSkeletonBar width="68%" height="1.35rem" className="mt-0.5" />
+                      ) : (
+                        <p
+                          className="design-pb-amount"
+                          aria-label={`${t('leaderboard.prizePoolLabel')}: ${formatCoinsFull(poolTotal ?? 0)}`}
+                        >
+                          <span className="design-pb-amount-full">{formatCoinsFull(poolTotal ?? 0)}</span>
+                          <span className="design-pb-amount-short">{formatCoins(poolTotal ?? 0)}</span>
+                        </p>
+                      )}
+                    </div>
+                  </section>
+
+                  <section className="design-pb-aside" aria-label={t('leaderboard.resetsIn')}>
+                    <div className="design-pb-timer">
+                      <p className="design-pb-rlabel">{t('leaderboard.resetsIn')}</p>
+                      <WeekTimer endsAt={endsAt} isAwaiting={isWeekAwaiting} />
+                    </div>
+
+                    <div className="design-pb-stats">
+                      {isMeAwaiting ? (
+                        <MetaSkeletonChip className="header-meta-skeleton--pill" />
+                      ) : (
+                        playerRank != null && (
+                          <PlayerStatPill
+                            rank={playerRank}
+                            estimatedReward={playerRank <= 100 ? estimatedReward : null}
+                            tierKey={playerTierKey}
+                          />
+                        )
+                      )}
+                    </div>
+                  </section>
+                </div>
+              )}
             </div>
 
             <GlobalMetaBar
@@ -312,6 +371,7 @@ export function LeaderboardLayout({
               nextTierHint={nextTierHint}
               entries={entries}
               onTierNavigate={onTierNavigate}
+              isWeekAwaiting={isWeekAwaiting}
             />
 
             {statusBanner}
@@ -345,14 +405,18 @@ export function LeaderboardLayout({
                 transition={{ duration: 0.4 }}
                 className="px-3.5 pt-[18px]"
               >
-                <Podium
-                  first={podiumFirst}
-                  second={podiumSecond}
-                  third={podiumThird}
-                  poolTotal={poolTotal}
-                  highlightUserId={highlightUserId}
-                  suppressConfetti={suppressPodiumConfetti}
-                />
+                {isTopAwaiting ? (
+                  <PodiumSkeleton label={t('leaderboard.loading')} />
+                ) : (
+                  <Podium
+                    first={podiumFirst}
+                    second={podiumSecond}
+                    third={podiumThird}
+                    poolTotal={poolTotal}
+                    highlightUserId={highlightUserId}
+                    suppressConfetti={suppressPodiumConfetti}
+                  />
+                )}
               </motion.section>
 
               <motion.section

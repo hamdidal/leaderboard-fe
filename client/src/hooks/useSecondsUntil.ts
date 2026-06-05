@@ -5,7 +5,9 @@ function computeSecondsUntil(endsAt: string): number {
 }
 
 export function useSecondsUntil(endsAt?: string): number | null {
-  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(() =>
+    endsAt ? computeSecondsUntil(endsAt) : null,
+  );
 
   useEffect(() => {
     if (!endsAt) {

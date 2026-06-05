@@ -2,6 +2,7 @@ import { Globe } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { LeaderboardEntry } from '@panteon/shared';
 import { cn } from '@/lib/utils';
+import { MetaSkeletonBar } from '@/components/premium/HeaderMetaSkeleton';
 import { canNavigateToTier } from '@/lib/scrollToTier';
 import { TIER_BANDS, formatGlobalPlayerCount, getTierLabel } from '@/lib/tierUtils';
 import type { TierI18nKey } from '@/lib/tierUtils';
@@ -12,19 +13,21 @@ interface GlobalMetaBarProps {
   nextTierHint?: { tierKey: TierI18nKey; points: string } | null;
   entries?: readonly LeaderboardEntry[];
   onTierNavigate?: (tierKey: TierI18nKey) => void;
+  isWeekAwaiting?: boolean;
 }
 
 export function GlobalMetaBar({
-  totalPlayers = 0,
+  totalPlayers,
   activeTierKey,
   nextTierHint,
   entries = [],
   onTierNavigate,
+  isWeekAwaiting = false,
 }: GlobalMetaBarProps) {
   const { t, i18n } = useTranslation();
 
   const playerLabel =
-    totalPlayers > 0
+    totalPlayers != null && totalPlayers > 0
       ? t('leaderboard.globalPlayers', {
           formatted: formatGlobalPlayerCount(totalPlayers, i18n.language),
         })
@@ -39,7 +42,11 @@ export function GlobalMetaBar({
         <span className="global-meta-chip">
           <Globe className="h-3.5 w-3.5 shrink-0" aria-hidden />
           <span className="font-bold uppercase tracking-wide">{t('leaderboard.global')}</span>
-          {playerLabel && <span className="global-meta-count">{playerLabel}</span>}
+          {isWeekAwaiting ? (
+            <MetaSkeletonBar width="3.5rem" height="0.62rem" />
+          ) : (
+            playerLabel && <span className="global-meta-count">{playerLabel}</span>
+          )}
         </span>
         {nextTierHint && (
           <p className="global-meta-next-tier" role="status">

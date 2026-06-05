@@ -54,6 +54,7 @@
     "scorePrizeCol": "Score / Est. prize",
     "rankingsEmpty": "Scores are still being calculated — check back in a moment!",
     "failedToLoad": "Failed to load rankings",
+    "headerMetaError": "Could not load prize pool stats.",
     "retry": "Retry",
     "youEarned": "You earned {{amount}} coins!",
     "weeklyContribution": "Your pool contribution:",

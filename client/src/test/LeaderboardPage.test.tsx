@@ -83,6 +83,48 @@ describe('LeaderboardPage', () => {
     fetchDemoToken.mockResolvedValue({ token: 'test-jwt' });
   });
 
+  it('shows skeleton placeholders while core queries are unresolved', async () => {
+    type Week = Awaited<ReturnType<typeof fetchCurrentWeek>>;
+    type Pool = Awaited<ReturnType<typeof fetchPool>>;
+    type Top = Awaited<ReturnType<typeof fetchTop100>>;
+
+    let resolveWeek!: (value: Week) => void;
+    let resolvePool!: (value: Pool) => void;
+    let resolveTop!: (value: Top) => void;
+
+    fetchCurrentWeek.mockImplementation(
+      () => new Promise<Week>((resolve) => {
+        resolveWeek = resolve;
+      }),
+    );
+    fetchPool.mockImplementation(
+      () => new Promise<Pool>((resolve) => {
+        resolvePool = resolve;
+      }),
+    );
+    fetchTop100.mockImplementation(
+      () => new Promise<Top>((resolve) => {
+        resolveTop = resolve;
+      }),
+    );
+
+    renderPage();
+
+    const podiumSkeleton = await screen.findByTestId('podium-skeleton');
+    expect(podiumSkeleton).toBeInTheDocument();
+    expect(podiumSkeleton).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getAllByTestId('header-meta-skeleton').length).toBeGreaterThan(0);
+    expect(document.querySelector('.top100-list[aria-busy="true"]')).toBeInTheDocument();
+
+    resolveWeek(mockWeekActive);
+    resolvePool(mockPool);
+    resolveTop(mockTop100);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('podium-skeleton')).not.toBeInTheDocument();
+    });
+  });
+
   it('renders top 100 rows after API resolves', async () => {
     renderPage();
 

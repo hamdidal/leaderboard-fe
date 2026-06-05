@@ -31,6 +31,7 @@ import {
   type TierI18nKey,
 } from '@/lib/tierUtils';
 import { formatCoins } from '@/components/premium/prizeUtils';
+import { isAwaitingQueryData } from '@/lib/queryUiState';
 import type { LeaderboardEntry } from '@panteon/shared';
 
 function estimateReward(poolTotal: number, rank: number): number | null {
@@ -194,9 +195,24 @@ export function LeaderboardPage() {
 
   const entries: LeaderboardEntry[] = topQuery.data?.entries ?? [];
   const poolTotal = poolQuery.data?.poolTotal;
+
+  const isPoolAwaiting = isAwaitingQueryData(poolQuery.isError, poolQuery.isPending);
+  const isWeekAwaiting = isAwaitingQueryData(weekQuery.isError, weekQuery.isPending);
+  const isTopAwaiting = isAwaitingQueryData(topQuery.isError, topQuery.isPending);
+  const isHeaderMetaError =
+    (poolQuery.isError && !poolQuery.data) || (weekQuery.isError && !weekQuery.data);
+
+  const handleRetryHeaderMeta = useCallback(() => {
+    void poolQuery.refetch();
+    void weekQuery.refetch();
+  }, [poolQuery, weekQuery]);
   const weekStatus = weekQuery.data?.status;
   const meData = meQuery.data;
   const meEntry = meData?.me;
+  const isMeAwaiting =
+    !meQuery.isError &&
+    meEntry == null &&
+    (!authToken || meQuery.isPending || meQuery.isFetching);
   const meNeighbors = meData?.neighbors ?? [];
 
   const estimated = poolTotal != null && meEntry != null
@@ -305,16 +321,22 @@ export function LeaderboardPage() {
         poolTotal={poolTotal}
         endsAt={weekQuery.data?.endsAt}
         weekId={weekQuery.data?.weekId ?? poolQuery.data?.weekId}
+        isPoolAwaiting={isPoolAwaiting}
+        isWeekAwaiting={isWeekAwaiting}
+        isMeAwaiting={isMeAwaiting}
+        isTopAwaiting={isTopAwaiting}
+        isHeaderMetaError={isHeaderMetaError}
+        onRetryHeaderMeta={handleRetryHeaderMeta}
         playerRank={meEntry?.rank}
         estimatedReward={estimated}
         playerTierKey={playerTierKey}
         nextTierHint={nextTierHint}
-        totalPlayers={weekQuery.data?.totalPlayers ?? 0}
+        totalPlayers={weekQuery.data?.totalPlayers}
         entries={entries}
         highlightUserId={meEntry?.userId}
         rankDeltas={rankDeltas}
-        isTopLoading={topQuery.isLoading || poolQuery.isLoading}
-        isTopError={topQuery.isError}
+        isTopLoading={isTopAwaiting}
+        isTopError={topQuery.isError && !topQuery.data}
         onRetryTop={() => topQuery.refetch()}
         meEntry={meEntry}
         meNeighbors={meNeighbors}

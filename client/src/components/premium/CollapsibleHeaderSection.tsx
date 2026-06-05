@@ -7,7 +7,6 @@ interface CollapsibleHeaderSectionProps {
   className?: string;
 }
 
-/** CSS grid 0fr/1fr accordion — GPU-friendly, no JS height measurement. */
 export function CollapsibleHeaderSection({
   collapsed,
   children,

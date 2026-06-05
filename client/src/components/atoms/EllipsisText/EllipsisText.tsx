@@ -74,7 +74,7 @@ export function EllipsisText({ text, className }: EllipsisTextProps) {
       <TooltipTrigger asChild>{span}</TooltipTrigger>
       <TooltipContent
         side="top"
-        className="max-w-[min(90vw,280px)] break-words text-center"
+        className="max-w-[min(90vw,280px)] break-words text-center text-xs"
       >
         {text}
       </TooltipContent>

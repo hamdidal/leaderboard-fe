@@ -54,6 +54,7 @@
     "scorePrizeCol": "Skor / Tahm. ödül",
     "rankingsEmpty": "Puanlar hesaplanıyor — birazdan tekrar dene!",
     "failedToLoad": "Sıralamalar yüklenemedi",
+    "headerMetaError": "Ödül havuzu bilgileri yüklenemedi.",
     "retry": "Tekrar dene",
     "youEarned": "{{amount}} coin kazandın!",
     "weeklyContribution": "Havuza katkın:",
