@@ -1,6 +1,5 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, fireEvent, renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { useRef } from 'react';
 import { useScrollCollapse } from '@/hooks/useScrollCollapse';
 
 describe('useScrollCollapse', () => {
@@ -17,13 +16,13 @@ describe('useScrollCollapse', () => {
 
     act(() => {
       el.scrollTop = 80;
-      el.dispatchEvent(new Event('scroll'));
+      fireEvent.scroll(el);
     });
     expect(result.current).toBe(true);
 
     act(() => {
       el.scrollTop = 20;
-      el.dispatchEvent(new Event('scroll'));
+      fireEvent.scroll(el);
     });
     expect(result.current).toBe(false);
 
