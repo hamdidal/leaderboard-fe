@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
 import { CoinIcon } from '@/components/atoms/CoinIcon/CoinIcon';
 import { getPrizeShare, formatCoins, formatScore } from './prizeUtils';
+import { PODIUM_SECTION_ID } from '@/lib/scrollToTier';
 
 interface PodiumProps {
   first?: LeaderboardEntry;
@@ -14,6 +15,8 @@ interface PodiumProps {
   third?: LeaderboardEntry;
   poolTotal?: number;
   highlightUserId?: string;
+  /** Skip mount confetti (e.g. while week recap modal is showing). */
+  suppressConfetti?: boolean;
 }
 
 type Medal = 1 | 2 | 3;
@@ -88,12 +91,19 @@ function PodiumSlot({ entry, rank, poolTotal, delay, reducedMotion, isCurrentUse
   );
 }
 
-export function Podium({ first, second, third, poolTotal, highlightUserId }: PodiumProps) {
+export function Podium({
+  first,
+  second,
+  third,
+  poolTotal,
+  highlightUserId,
+  suppressConfetti = false,
+}: PodiumProps) {
   const { t } = useTranslation();
   const reducedMotion = usePrefersReducedMotion();
 
   useEffect(() => {
-    if (!first || reducedMotion) return;
+    if (!first || reducedMotion || suppressConfetti) return;
     const timer = setTimeout(() => {
       confetti({
         particleCount: 110,
@@ -106,7 +116,7 @@ export function Podium({ first, second, third, poolTotal, highlightUserId }: Pod
       });
     }, 900);
     return () => clearTimeout(timer);
-  }, [first?.userId, reducedMotion]);
+  }, [first?.userId, reducedMotion, suppressConfetti]);
 
   if (!first && !second && !third) {
     return (
@@ -120,7 +130,11 @@ export function Podium({ first, second, third, poolTotal, highlightUserId }: Pod
   }
 
   return (
-    <section aria-label={t('leaderboard.podiumTitle')} className="podium-stage">
+    <section
+      id={PODIUM_SECTION_ID}
+      aria-label={t('leaderboard.podiumTitle')}
+      className="podium-stage"
+    >
       <div className="podium-block">
         {second && (
           <PodiumSlot

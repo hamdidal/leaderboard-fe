@@ -2,16 +2,16 @@ import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   leaderboardLiveSocket,
-  type LiveEventType,
+  type LiveEvent,
   type WsStatus,
 } from '@/lib/leaderboardLiveSocket';
 
-export type { WsStatus, LiveEventType };
+export type { WsStatus, LiveEvent };
 
 export function useLeaderboardLive(
   weekId?: string,
   enabled = true,
-  onLiveEvent?: (type: LiveEventType) => void,
+  onLiveEvent?: (event: LiveEvent) => void,
 ): { wsStatus: WsStatus } {
   const queryClient = useQueryClient();
   const [wsStatus, setWsStatus] = useState<WsStatus>('disconnected');
@@ -21,8 +21,8 @@ export function useLeaderboardLive(
       weekId,
       enabled,
       setWsStatus,
-      (type) => {
-        onLiveEvent?.(type);
+      (event) => {
+        onLiveEvent?.(event);
         void Promise.all([
           queryClient.invalidateQueries({ queryKey: ['top100'] }),
           queryClient.invalidateQueries({ queryKey: ['me'] }),

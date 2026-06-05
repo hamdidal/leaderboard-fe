@@ -8,17 +8,30 @@ const RECONNECT_MS = 3000;
 
 export type WsStatus = 'connecting' | 'connected' | 'disconnected';
 
-export type LiveEventType = 'rank_update' | 'week_reset';
+export type LiveEvent =
+  | { type: 'rank_update'; userId: string }
+  | { type: 'week_reset'; oldWeekId: string; newWeekId: string };
 
 type StatusListener = (status: WsStatus) => void;
-type LiveEventListener = (type: LiveEventType) => void;
+type LiveEventListener = (event: LiveEvent) => void;
 
-export function parseLiveEventPayload(raw: string): LiveEventType | null {
+export function parseLiveEvent(raw: string): LiveEvent | null {
   try {
-    const data = JSON.parse(raw) as { type?: string };
-    if (data.type === 'rank_update' || data.type === 'week_reset') {
-      return data.type;
+    const data = JSON.parse(raw) as {
+      type?: string;
+      userId?: string;
+      oldWeekId?: string;
+      newWeekId?: string;
+    };
+
+    if (data.type === 'rank_update' && data.userId) {
+      return { type: 'rank_update', userId: data.userId };
     }
+
+    if (data.type === 'week_reset' && data.oldWeekId && data.newWeekId) {
+      return { type: 'week_reset', oldWeekId: data.oldWeekId, newWeekId: data.newWeekId };
+    }
+
     return null;
   } catch {
     return null;
@@ -107,8 +120,8 @@ class LeaderboardLiveSocket {
     for (const listener of this.statusListeners) listener(next);
   }
 
-  private emitLiveEvent(type: LiveEventType) {
-    for (const listener of this.liveEventListeners) listener(type);
+  private emitLiveEvent(event: LiveEvent) {
+    for (const listener of this.liveEventListeners) listener(event);
   }
 
   private scheduleReconnect() {
@@ -134,8 +147,8 @@ class LeaderboardLiveSocket {
 
     ws.onmessage = (event) => {
       if (this.ws !== ws) return;
-      const liveType = parseLiveEventPayload(event.data as string);
-      if (liveType) this.emitLiveEvent(liveType);
+      const liveEvent = parseLiveEvent(event.data as string);
+      if (liveEvent) this.emitLiveEvent(liveEvent);
     };
 
     ws.onerror = () => {

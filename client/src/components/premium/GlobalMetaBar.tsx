@@ -1,18 +1,25 @@
 import { Globe } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import type { LeaderboardEntry } from '@panteon/shared';
 import { cn } from '@/lib/utils';
-import { TIER_BANDS, formatGlobalPlayerCount } from '@/lib/tierUtils';
+import { canNavigateToTier } from '@/lib/scrollToTier';
+import { TIER_BANDS, formatGlobalPlayerCount, getTierLabel } from '@/lib/tierUtils';
+import type { TierI18nKey } from '@/lib/tierUtils';
 
 interface GlobalMetaBarProps {
   totalPlayers?: number;
-  activeTierKey?: string;
-  nextTierHint?: { tierKey: string; points: string } | null;
+  activeTierKey?: TierI18nKey;
+  nextTierHint?: { tierKey: TierI18nKey; points: string } | null;
+  entries?: readonly LeaderboardEntry[];
+  onTierNavigate?: (tierKey: TierI18nKey) => void;
 }
 
 export function GlobalMetaBar({
   totalPlayers = 0,
   activeTierKey,
   nextTierHint,
+  entries = [],
+  onTierNavigate,
 }: GlobalMetaBarProps) {
   const { t, i18n } = useTranslation();
 
@@ -38,7 +45,7 @@ export function GlobalMetaBar({
           <p className="global-meta-next-tier" role="status">
             {t('leaderboard.nextTierGap', {
               points: nextTierHint.points,
-              tier: t(nextTierHint.tierKey),
+              tier: getTierLabel(nextTierHint.tierKey),
             })}
           </p>
         )}
@@ -47,15 +54,24 @@ export function GlobalMetaBar({
       <ul className="tier-legend" aria-label={t('leaderboard.tierLegendAria')}>
         {TIER_BANDS.map((band) => {
           const isActive = activeTierKey === band.key;
+          const canNavigate = Boolean(onTierNavigate && canNavigateToTier(band.key, entries));
+          const chipClass = cn('tier-legend-chip', isActive && 'tier-legend-chip--active');
+
           return (
             <li key={band.key}>
-              <span
-                className={cn('tier-legend-chip', isActive && 'tier-legend-chip--active')}
-                title={t(band.rangeKey)}
-              >
-                <span className="tier-legend-name">{t(band.key)}</span>
-                <span className="tier-legend-range">{t(band.rangeKey)}</span>
-              </span>
+              {canNavigate ? (
+                <button
+                  type="button"
+                  className={chipClass}
+                  onClick={() => onTierNavigate?.(band.key)}
+                  aria-label={t('leaderboard.tierJumpAria', { tier: band.label })}
+                  aria-current={isActive ? 'true' : undefined}
+                >
+                  {band.label}
+                </button>
+              ) : (
+                <span className={chipClass}>{band.label}</span>
+              )}
             </li>
           );
         })}

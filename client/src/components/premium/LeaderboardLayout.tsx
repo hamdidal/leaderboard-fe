@@ -1,35 +1,42 @@
-import { type ReactNode, useMemo } from 'react';
+import { type ReactNode, useMemo, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Wifi, WifiOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { LeaderboardEntry } from '@panteon/shared';
 import type { WsStatus } from '@/hooks/useLeaderboardLive';
+import { useScrollCollapse } from '@/hooks/useScrollCollapse';
 import { useSecondsUntil } from '@/hooks/useSecondsUntil';
 import { LangSwitcher } from '@/components/molecules/LangSwitcher';
 import { ThemeToggle } from '@/components/molecules/ThemeToggle';
 import { getDurationParts, pad2 } from '@/lib/formatDuration';
+import { getTierLabel, type TierI18nKey } from '@/lib/tierUtils';
 import { cn } from '@/lib/utils';
 import { CoinIcon } from '@/components/atoms/CoinIcon/CoinIcon';
 import { formatCoinsFull, formatCoins } from './prizeUtils';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { GlobalMetaBar } from '@/components/premium/GlobalMetaBar';
 import { JumpToMeButton } from '@/components/premium/JumpToMeButton';
+import { CompactHeaderStrip } from '@/components/premium/CompactHeaderStrip';
+import { CollapsibleHeaderSection } from '@/components/premium/CollapsibleHeaderSection';
 import { Podium } from '@/components/premium/Podium';
 import { RankedList } from '@/components/premium/RankedList';
 import { StickyPlayerContext } from '@/components/premium/StickyPlayerContext';
+import muscleLandLogo from '@/assets/muscle-land-logo.png';
 
 export interface LeaderboardLayoutProps {
   wsStatus: WsStatus;
   statusBanner?: ReactNode;
-  rewardsPanel?: ReactNode;
+  lastWeekSection?: ReactNode;
+  hasLastWeek?: boolean;
+  onScrollToLastWeek?: () => void;
   meStatusSlot?: ReactNode;
   poolTotal?: number;
   endsAt?: string;
   weekId?: string;
   playerRank?: number;
   estimatedReward?: number | null;
-  playerTierKey?: string;
-  nextTierHint?: { tierKey: string; points: string } | null;
+  playerTierKey?: TierI18nKey;
+  nextTierHint?: { tierKey: TierI18nKey; points: string } | null;
   totalPlayers?: number;
   entries: LeaderboardEntry[];
   highlightUserId?: string;
@@ -44,6 +51,8 @@ export interface LeaderboardLayoutProps {
   pointsToTop100?: number | null;
   onJumpToMe?: () => void;
   jumpToMeDisabled?: boolean;
+  suppressPodiumConfetti?: boolean;
+  onTierNavigate?: (tierKey: TierI18nKey) => void;
 }
 
 const BADGE_BASE =
@@ -108,9 +117,8 @@ function PlayerStatPill({
 }: {
   rank?: number;
   estimatedReward?: number | null;
-  tierKey?: string;
+  tierKey?: TierI18nKey;
 }) {
-  const { t } = useTranslation();
   if (!rank) return null;
 
   return (
@@ -128,7 +136,7 @@ function PlayerStatPill({
         #{rank.toLocaleString()}
         {tierKey && (
           <span className="ml-1 rounded-sm bg-primary/20 px-1 text-[10px] font-bold">
-            {t(tierKey)}
+            {getTierLabel(tierKey)}
           </span>
         )}
       </span>
@@ -153,8 +161,10 @@ function PlayerStatPill({
 export function LeaderboardLayout({
   wsStatus,
   statusBanner,
-  rewardsPanel,
   meStatusSlot,
+  lastWeekSection,
+  hasLastWeek = false,
+  onScrollToLastWeek,
   poolTotal,
   endsAt,
   weekId,
@@ -176,8 +186,12 @@ export function LeaderboardLayout({
   pointsToTop100 = null,
   onJumpToMe,
   jumpToMeDisabled = false,
+  suppressPodiumConfetti = false,
+  onTierNavigate,
 }: LeaderboardLayoutProps) {
   const { t } = useTranslation();
+  const mainScrollRef = useRef<HTMLElement>(null);
+  const headerCollapsed = useScrollCollapse(mainScrollRef);
 
   const [podiumFirst, podiumSecond, podiumThird] = entries;
   const listEntries = useMemo(() => entries.slice(3), [entries]);
@@ -193,8 +207,9 @@ export function LeaderboardLayout({
         </a>
 
         <header
+          data-collapsed={headerCollapsed ? 'true' : 'false'}
           className={cn(
-            'sticky top-0 z-40 w-full',
+            'lb-header sticky top-0 z-40 w-full',
             'glass-strong glass-shine',
             'border-b',
             'dark:bg-[rgba(11,9,25,0.80)] dark:border-b-white/[0.07]',
@@ -209,9 +224,9 @@ export function LeaderboardLayout({
                 <div className="app-header-identity">
                   <div className="app-header-logo" aria-hidden>
                     <img
-                      src="/panteon-logo.png"
+                      src={muscleLandLogo}
                       alt=""
-                      className="h-full w-full object-contain"
+                      className="h-full w-full object-cover"
                     />
                   </div>
                   <h1 className="app-header-title text-foreground">
@@ -237,66 +252,93 @@ export function LeaderboardLayout({
             </div>
           </div>
 
-          <div className="prize-bar-center">
-            <div className="design-prize-bar">
-              <section className="design-pb-pool" aria-label={t('leaderboard.prizePoolLabel')}>
-                <div className="design-pb-icon">
-                  <CoinIcon size="xl" />
-                </div>
-                <div className="design-pb-pool-text">
-                  <p className="design-pb-label">{t('leaderboard.prizePoolLabel')}</p>
-                  {poolTotal != null ? (
-                    <p
-                      className="design-pb-amount"
-                      aria-label={`${t('leaderboard.prizePoolLabel')}: ${formatCoinsFull(poolTotal)}`}
-                    >
-                      <span className="design-pb-amount-full">{formatCoinsFull(poolTotal)}</span>
-                      <span className="design-pb-amount-short">{formatCoins(poolTotal)}</span>
-                    </p>
-                  ) : (
-                    <p className="design-pb-amount text-muted-foreground">–</p>
-                  )}
-                </div>
-              </section>
-
-              <section className="design-pb-aside" aria-label={t('leaderboard.resetsIn')}>
-                <div className="design-pb-timer">
-                  <p className="design-pb-rlabel">{t('leaderboard.resetsIn')}</p>
-                  <WeekTimer endsAt={endsAt} />
-                </div>
-
-                {playerRank != null && (
-                  <div className="design-pb-stats">
-                    <PlayerStatPill
-                      rank={playerRank}
-                      estimatedReward={playerRank <= 100 ? estimatedReward : null}
-                      tierKey={playerTierKey}
-                    />
-                  </div>
-                )}
-              </section>
-            </div>
-          </div>
-
-          <GlobalMetaBar
+          <CompactHeaderStrip
+            visible={headerCollapsed}
+            poolTotal={poolTotal}
+            endsAt={endsAt}
+            playerRank={playerRank}
+            estimatedReward={estimatedReward}
             totalPlayers={totalPlayers}
-            activeTierKey={playerTierKey}
-            nextTierHint={nextTierHint}
+            hasRewardsPanel={hasLastWeek}
+            onLastWeekClick={onScrollToLastWeek}
+            playerTierKey={playerTierKey}
           />
 
-          {statusBanner}
-          {rewardsPanel}
-          {meStatusSlot}
+          <CollapsibleHeaderSection collapsed={headerCollapsed}>
+            <div className="prize-bar-center">
+              <div className="design-prize-bar">
+                <section className="design-pb-pool" aria-label={t('leaderboard.prizePoolLabel')}>
+                  <div className="design-pb-icon">
+                    <CoinIcon size="xl" />
+                  </div>
+                  <div className="design-pb-pool-text">
+                    <p className="design-pb-label">{t('leaderboard.prizePoolLabel')}</p>
+                    {poolTotal != null ? (
+                      <p
+                        className="design-pb-amount"
+                        aria-label={`${t('leaderboard.prizePoolLabel')}: ${formatCoinsFull(poolTotal)}`}
+                      >
+                        <span className="design-pb-amount-full">{formatCoinsFull(poolTotal)}</span>
+                        <span className="design-pb-amount-short">{formatCoins(poolTotal)}</span>
+                      </p>
+                    ) : (
+                      <p className="design-pb-amount text-muted-foreground">–</p>
+                    )}
+                  </div>
+                </section>
+
+                <section className="design-pb-aside" aria-label={t('leaderboard.resetsIn')}>
+                  <div className="design-pb-timer">
+                    <p className="design-pb-rlabel">{t('leaderboard.resetsIn')}</p>
+                    <WeekTimer endsAt={endsAt} />
+                  </div>
+
+                  {playerRank != null && (
+                    <div className="design-pb-stats">
+                      <PlayerStatPill
+                        rank={playerRank}
+                        estimatedReward={playerRank <= 100 ? estimatedReward : null}
+                        tierKey={playerTierKey}
+                      />
+                    </div>
+                  )}
+                </section>
+              </div>
+            </div>
+
+            <GlobalMetaBar
+              totalPlayers={totalPlayers}
+              activeTierKey={playerTierKey}
+              nextTierHint={nextTierHint}
+              entries={entries}
+              onTierNavigate={onTierNavigate}
+            />
+
+            {statusBanner}
+            {meStatusSlot}
+          </CollapsibleHeaderSection>
         </header>
 
         <div className="flex flex-1 flex-col overflow-hidden min-h-0">
           <main
             id="main-content"
+            ref={mainScrollRef}
             tabIndex={-1}
             className="main-scroll relative z-10 flex-1 overflow-y-auto min-h-0 scroll-smooth"
             style={{ scrollbarGutter: 'stable' }}
           >
             <div className="mx-auto max-w-[720px] space-y-3 px-2.5 py-4">
+              {lastWeekSection}
+
+              {hasLastWeek && (
+                <div className="this-week-divider px-3.5 pt-1">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-primary">
+                    {t('leaderboard.thisWeekLabel')}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{t('leaderboard.thisWeekLiveHint')}</p>
+                </div>
+              )}
+
               <motion.section
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -309,6 +351,7 @@ export function LeaderboardLayout({
                   third={podiumThird}
                   poolTotal={poolTotal}
                   highlightUserId={highlightUserId}
+                  suppressConfetti={suppressPodiumConfetti}
                 />
               </motion.section>
 

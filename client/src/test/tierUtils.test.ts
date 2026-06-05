@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   computePointsToNextTier,
   getTierI18nKey,
-  getNextTierI18nKey,
+  getTierLabel,
 } from '@/lib/tierUtils';
 import type { LeaderboardEntry } from '@panteon/shared';
 
@@ -18,9 +18,9 @@ describe('tierUtils', () => {
     expect(getTierI18nKey(75)).toBe('leaderboard.tierSilver');
   });
 
-  it('returns next tier key', () => {
-    expect(getNextTierI18nKey(75)).toBe('leaderboard.tierGold');
-    expect(getNextTierI18nKey(1)).toBeUndefined();
+  it('returns English tier labels regardless of locale', () => {
+    expect(getTierLabel('leaderboard.tierPodium')).toBe('Podium');
+    expect(getTierLabel('leaderboard.tierGold')).toBe('Gold');
   });
 
   it('computes points to next tier boundary', () => {

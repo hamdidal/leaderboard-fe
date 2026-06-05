@@ -12,17 +12,23 @@ import {
 } from '@/api/leaderboard';
 import { ApiError } from '@/api/client';
 import { LeaderboardLayout } from '@/components/premium/LeaderboardLayout';
-import { WeekRewardsPanel } from '@/components/premium/WeekRewardsPanel';
+import { LastWeekSection } from '@/components/premium/LastWeekSection';
 import { StatusBanner } from '@/components/premium/StatusBanner';
+import { WeekRecapModal } from '@/components/premium/WeekRecapModal';
 import type { LatestRewardsResponse } from '@panteon/shared';
 import { DEFAULT_DEMO_USER_ID, useUiStore } from '@/store/uiStore';
 import { useLeaderboardLive } from '@/hooks/useLeaderboardLive';
+import type { LiveEvent } from '@/hooks/useLeaderboardLive';
+import { useWeekTransition } from '@/hooks/useWeekTransition';
 import { getJwtSubject } from '@/lib/jwt';
 import { computePointsToTop100 } from '@/lib/leaderboardGap';
+import { scrollToLastWeekSection } from '@/lib/scrollToLastWeek';
 import { scrollToPlayerAnchor } from '@/lib/scrollToPlayer';
+import { scrollToTierStart } from '@/lib/scrollToTier';
 import {
   computePointsToNextTier,
   getTierI18nKey,
+  type TierI18nKey,
 } from '@/lib/tierUtils';
 import { formatCoins } from '@/components/premium/prizeUtils';
 import type { LeaderboardEntry } from '@panteon/shared';
@@ -84,12 +90,48 @@ export function LeaderboardPage() {
   const prevRanksRef = useRef<Map<string, number>>(new Map());
   const [rankDeltas, setRankDeltas] = useState<ReadonlyMap<string, number>>(new Map());
 
-  const handleLiveEvent = useCallback((type: 'rank_update' | 'week_reset') => {
-    if (type === 'week_reset') {
-      prevRanksRef.current = new Map();
-      setRankDeltas(new Map());
-    }
-  }, []);
+  const closedWeekId = weekQuery.data?.status === 'CLOSED' ? weekQuery.data.weekId : null;
+
+  const closedRewardsQuery = useQuery({
+    queryKey: ['rewards', closedWeekId],
+    queryFn: () => fetchRewardsForWeek(closedWeekId!),
+    enabled: !!closedWeekId,
+    retry: false,
+  });
+
+  const latestRewardsQuery = useQuery({
+    queryKey: ['rewards', 'latest'],
+    queryFn: fetchLatestRewards,
+    enabled: !closedWeekId,
+    retry: false,
+    staleTime: 60_000,
+  });
+
+  const rewardsData: LatestRewardsResponse | undefined =
+    closedRewardsQuery.data ?? latestRewardsQuery.data;
+
+  const {
+    phase,
+    showRecapModal,
+    dismissRecap,
+    handleLiveEvent: handleWeekTransitionEvent,
+    hasLastWeek,
+  } = useWeekTransition({
+    weekStatus: weekQuery.data?.status,
+    currentWeekId: weekQuery.data?.weekId,
+    lastWeekRewards: rewardsData,
+  });
+
+  const handleLiveEvent = useCallback(
+    (event: LiveEvent) => {
+      handleWeekTransitionEvent(event);
+      if (event.type === 'week_reset') {
+        prevRanksRef.current = new Map();
+        setRankDeltas(new Map());
+      }
+    },
+    [handleWeekTransitionEvent],
+  );
 
   const { wsStatus } = useLeaderboardLive(
     weekQuery.data?.weekId,
@@ -112,23 +154,6 @@ export function LeaderboardPage() {
     refetchInterval: pollMs,
     retry: (failureCount, error) =>
       !(error instanceof ApiError && error.status === 401) && failureCount < 3,
-  });
-
-  const closedWeekId = weekQuery.data?.status === 'CLOSED' ? weekQuery.data.weekId : null;
-
-  const closedRewardsQuery = useQuery({
-    queryKey: ['rewards', closedWeekId],
-    queryFn: () => fetchRewardsForWeek(closedWeekId!),
-    enabled: !!closedWeekId,
-    retry: false,
-  });
-
-  const latestRewardsQuery = useQuery({
-    queryKey: ['rewards', 'latest'],
-    queryFn: fetchLatestRewards,
-    enabled: !closedWeekId,
-    retry: false,
-    staleTime: 60_000,
   });
 
   useEffect(() => {
@@ -200,17 +225,18 @@ export function LeaderboardPage() {
     scrollToPlayerAnchor(meEntry.userId, meEntry.rank);
   }, [meEntry]);
 
-  const rewardsData: LatestRewardsResponse | undefined =
-    closedRewardsQuery.data ?? latestRewardsQuery.data;
+  const handleTierNavigate = useCallback(
+    (tierKey: TierI18nKey) => {
+      scrollToTierStart(tierKey, entries);
+    },
+    [entries],
+  );
 
   const myRewardEntry = rewardsData?.rewards.find((r) => r.userId === meEntry?.userId);
   const weekWinner = rewardsData?.rewards.find((r) => r.rank === 1);
 
-  const showRewardsPanel =
-    rewardsData != null && rewardsData.rewards.length > 0;
-
   const statusBanner =
-    weekStatus === 'DISTRIBUTING' ? (
+    phase === 'distributing' || weekStatus === 'DISTRIBUTING' ? (
       <StatusBanner variant="distributing" message={t('leaderboard.distributingBanner')} />
     ) : weekStatus === 'CLOSED' ? (
       <StatusBanner
@@ -247,42 +273,59 @@ export function LeaderboardPage() {
     return null;
   })();
 
-  const rewardsPanel = showRewardsPanel ? (
-    <WeekRewardsPanel
-      data={rewardsData}
-      highlightUserId={meEntry?.userId}
-      defaultExpanded={weekStatus === 'DISTRIBUTING' || weekStatus === 'CLOSED'}
-    />
-  ) : undefined;
+  const handleRecapContinue = useCallback(() => {
+    dismissRecap();
+    document.getElementById('main-content')?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [dismissRecap]);
+
+  const lastWeekSection =
+    hasLastWeek && rewardsData ? (
+      <LastWeekSection data={rewardsData} highlightUserId={meEntry?.userId} />
+    ) : undefined;
 
   return (
-    <LeaderboardLayout
-      wsStatus={wsStatus}
-      statusBanner={statusBanner}
-      rewardsPanel={rewardsPanel}
-      meStatusSlot={meStatusSlot}
-      poolTotal={poolTotal}
-      endsAt={weekQuery.data?.endsAt}
-      weekId={weekQuery.data?.weekId ?? poolQuery.data?.weekId}
-      playerRank={meEntry?.rank}
-      estimatedReward={estimated}
-      playerTierKey={playerTierKey}
-      nextTierHint={nextTierHint}
-      totalPlayers={weekQuery.data?.totalPlayers ?? 0}
-      entries={entries}
-      highlightUserId={meEntry?.userId}
-      rankDeltas={rankDeltas}
-      isTopLoading={topQuery.isLoading || poolQuery.isLoading}
-      isTopError={topQuery.isError}
-      onRetryTop={() => topQuery.refetch()}
-      meEntry={meEntry}
-      meNeighbors={meNeighbors}
-      showPlayerContext={showPlayerContext}
-      inTop100={inTop100}
-      pointsToTop100={pointsToTop100}
-      onJumpToMe={meEntry && inTop100 ? handleJumpToMe : undefined}
-      jumpToMeDisabled={!authToken || meQuery.isLoading || topQuery.isLoading}
-    />
+    <>
+      {hasLastWeek && rewardsData && (
+        <WeekRecapModal
+          open={showRecapModal}
+          data={rewardsData}
+          highlightUserId={meEntry?.userId}
+          myReward={myRewardEntry}
+          onContinue={handleRecapContinue}
+        />
+      )}
+
+      <LeaderboardLayout
+        wsStatus={wsStatus}
+        statusBanner={statusBanner}
+        meStatusSlot={meStatusSlot}
+        lastWeekSection={lastWeekSection}
+        hasLastWeek={hasLastWeek}
+        onScrollToLastWeek={hasLastWeek ? scrollToLastWeekSection : undefined}
+        poolTotal={poolTotal}
+        endsAt={weekQuery.data?.endsAt}
+        weekId={weekQuery.data?.weekId ?? poolQuery.data?.weekId}
+        playerRank={meEntry?.rank}
+        estimatedReward={estimated}
+        playerTierKey={playerTierKey}
+        nextTierHint={nextTierHint}
+        totalPlayers={weekQuery.data?.totalPlayers ?? 0}
+        entries={entries}
+        highlightUserId={meEntry?.userId}
+        rankDeltas={rankDeltas}
+        isTopLoading={topQuery.isLoading || poolQuery.isLoading}
+        isTopError={topQuery.isError}
+        onRetryTop={() => topQuery.refetch()}
+        meEntry={meEntry}
+        meNeighbors={meNeighbors}
+        showPlayerContext={showPlayerContext}
+        inTop100={inTop100}
+        pointsToTop100={pointsToTop100}
+        onJumpToMe={meEntry && inTop100 ? handleJumpToMe : undefined}
+        jumpToMeDisabled={!authToken || meQuery.isLoading || topQuery.isLoading}
+        suppressPodiumConfetti={showRecapModal}
+        onTierNavigate={entries.length > 0 ? handleTierNavigate : undefined}
+      />
+    </>
   );
 }
-

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Target } from 'lucide-react';
+import { Target } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { LeaderboardEntry } from '@panteon/shared';
 import { cn } from '@/lib/utils';
@@ -156,14 +156,6 @@ export function StickyPlayerContext({
           <span className="text-[0.98rem] font-extrabold tabular-nums text-foreground">
             #{me.rank.toLocaleString()}
           </span>
-          <motion.span
-            animate={{ rotate: isExpanded ? 90 : 0 }}
-            transition={SPRING}
-            className="flex items-center text-[var(--design-tx3)]"
-            aria-hidden
-          >
-            <ChevronRight className="h-4 w-4" />
-          </motion.span>
         </div>
       </button>
 
